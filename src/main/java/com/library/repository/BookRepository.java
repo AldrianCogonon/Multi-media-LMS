@@ -1,44 +1,76 @@
 package com.library.repository;
 
 import com.library.model.Book;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Optional;
 
 public class BookRepository {
-    private final List<Book> books = new ArrayList<>();
 
-    public List<Book> findAll() {
-        return new ArrayList<>(books);
+    private Book[] books = new Book[0];
+
+    public Book[] findAll() {
+        return Arrays.copyOf(books, books.length);
     }
 
     public Optional<Book> findById(int id) {
-        return books.stream()
-                .filter(book -> book.getId() == id)
-                .findFirst();
+        for (Book book : books) {
+            if (book.getId() == id) {
+                return Optional.of(book);
+            }
+        }
+
+        return Optional.empty();
     }
 
     public void save(Book book) {
-        books.add(book);
+        books = Arrays.copyOf(books, books.length + 1);
+        books[books.length - 1] = book;
     }
 
     public boolean update(Book updatedBook) {
-        Optional<Book> existing = findById(updatedBook.getId());
+        for (Book book : books) {
+            if (book.getId() == updatedBook.getId()) {
+                book.setTitle(updatedBook.getTitle());
+                book.setAuthor(updatedBook.getAuthor());
+                book.setIsbn(updatedBook.getIsbn());
+                book.setCategory(updatedBook.getCategory());
+                book.setQuantity(updatedBook.getQuantity());
 
-        if (existing.isEmpty()) {
-            return false;
+                return true;
+            }
         }
 
-        Book book = existing.get();
-        book.setTitle(updatedBook.getTitle());
-        book.setAuthor(updatedBook.getAuthor());
-        book.setIsbn(updatedBook.getIsbn());
-        book.setCategory(updatedBook.getCategory());
-        book.setQuantity(updatedBook.getQuantity());
-        return true;
+        return false;
     }
 
     public boolean deleteById(int id) {
-        return books.removeIf(book -> book.getId() == id);
+        int index = -1;
+
+        for (int i = 0; i < books.length; i++) {
+            if (books[i].getId() == id) {
+                index = i;
+                break;
+            }
+        }
+
+        if (index == -1) {
+            return false;
+        }
+
+        Book[] newBooks = new Book[books.length - 1];
+
+        System.arraycopy(books, 0, newBooks, 0, index);
+
+        System.arraycopy(
+                books,
+                index + 1,
+                newBooks,
+                index,
+                books.length - index - 1
+        );
+
+        books = newBooks;
+
+        return true;
     }
 }

@@ -9,6 +9,7 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
 
 public class BookView {
+
     private final BookController controller;
     private final TableView<Book> table = new TableView<>();
 
@@ -36,6 +37,7 @@ public class BookView {
         GridPane form = new GridPane();
         form.setHgap(8);
         form.setVgap(8);
+
         form.addRow(0, new Label("Title"), titleField);
         form.addRow(1, new Label("Author"), authorField);
         form.addRow(2, new Label("ISBN"), isbnField);
@@ -52,58 +54,90 @@ public class BookView {
         deleteButton.setOnAction(event -> deleteBook());
         clearButton.setOnAction(event -> clearForm());
 
-        table.getSelectionModel().selectedItemProperty()
+        table.getSelectionModel()
+                .selectedItemProperty()
                 .addListener((obs, oldBook, selectedBook) -> {
                     if (selectedBook != null) {
                         populateForm(selectedBook);
                     }
                 });
 
-        HBox buttons = new HBox(8, addButton, updateButton,
-                deleteButton, clearButton);
+        HBox buttons = new HBox(
+                8,
+                addButton,
+                updateButton,
+                deleteButton,
+                clearButton
+        );
 
         VBox root = new VBox(12, heading, form, buttons, table);
         root.setPadding(new javafx.geometry.Insets(16));
+
         refreshTable();
+
         return root;
     }
 
     private void configureTable() {
-        TableColumn<Book, Integer> idColumn = new TableColumn<>("ID");
+        TableColumn<Book, Integer> idColumn =
+                new TableColumn<>("ID");
+
         idColumn.setCellValueFactory(
-                new PropertyValueFactory<>("id"));
+                new PropertyValueFactory<>("id")
+        );
 
         TableColumn<Book, String> titleColumn =
                 new TableColumn<>("Title");
+
         titleColumn.setCellValueFactory(
-                new PropertyValueFactory<>("title"));
+                new PropertyValueFactory<>("title")
+        );
 
         TableColumn<Book, String> authorColumn =
                 new TableColumn<>("Author");
+
         authorColumn.setCellValueFactory(
-                new PropertyValueFactory<>("author"));
+                new PropertyValueFactory<>("author")
+        );
 
         TableColumn<Book, String> isbnColumn =
                 new TableColumn<>("ISBN");
+
         isbnColumn.setCellValueFactory(
-                new PropertyValueFactory<>("isbn"));
+                new PropertyValueFactory<>("isbn")
+        );
 
         TableColumn<Book, String> categoryColumn =
                 new TableColumn<>("Category");
+
         categoryColumn.setCellValueFactory(
-                new PropertyValueFactory<>("category"));
+                new PropertyValueFactory<>("category")
+        );
 
         TableColumn<Book, Integer> quantityColumn =
                 new TableColumn<>("Quantity");
-        quantityColumn.setCellValueFactory(
-                new PropertyValueFactory<>("quantity"));
 
-        table.getColumns().addAll(idColumn, titleColumn,
-                authorColumn, isbnColumn, categoryColumn,
-                quantityColumn);
+        quantityColumn.setCellValueFactory(
+                new PropertyValueFactory<>("quantity")
+        );
+
+        table.getColumns().addAll(
+                idColumn,
+                titleColumn,
+                authorColumn,
+                isbnColumn,
+                categoryColumn,
+                quantityColumn
+        );
+
         table.setColumnResizePolicy(
-                TableView.CONSTRAINED_RESIZE_POLICY);
-        table.setPlaceholder(new Label("No books added yet."));
+                TableView.CONSTRAINED_RESIZE_POLICY
+        );
+
+        table.setPlaceholder(
+                new Label("No books added yet.")
+        );
+
         VBox.setVgrow(table, Priority.ALWAYS);
     }
 
@@ -116,15 +150,18 @@ public class BookView {
                     categoryField.getText(),
                     readQuantity()
             );
+
             refreshTable();
             clearForm();
+
         } catch (IllegalArgumentException ex) {
             showError(ex.getMessage());
         }
     }
 
     private void updateBook() {
-        Book selected = table.getSelectionModel().getSelectedItem();
+        Book selected =
+                table.getSelectionModel().getSelectedItem();
 
         if (selected == null) {
             showError("Select a book to update.");
@@ -140,15 +177,18 @@ public class BookView {
                     categoryField.getText(),
                     readQuantity()
             );
+
             refreshTable();
             clearForm();
+
         } catch (IllegalArgumentException ex) {
             showError(ex.getMessage());
         }
     }
 
     private void deleteBook() {
-        Book selected = table.getSelectionModel().getSelectedItem();
+        Book selected =
+                table.getSelectionModel().getSelectedItem();
 
         if (selected == null) {
             showError("Select a book to delete.");
@@ -157,8 +197,10 @@ public class BookView {
 
         try {
             controller.deleteBook(selected.getId());
+
             refreshTable();
             clearForm();
+
         } catch (IllegalArgumentException ex) {
             showError(ex.getMessage());
         }
@@ -166,10 +208,14 @@ public class BookView {
 
     private int readQuantity() {
         try {
-            return Integer.parseInt(quantityField.getText().trim());
+            return Integer.parseInt(
+                    quantityField.getText().trim()
+            );
+
         } catch (NumberFormatException ex) {
             throw new IllegalArgumentException(
-                    "Quantity must be a whole number.");
+                    "Quantity must be a whole number."
+            );
         }
     }
 
@@ -178,11 +224,15 @@ public class BookView {
         authorField.setText(book.getAuthor());
         isbnField.setText(book.getIsbn());
         categoryField.setText(book.getCategory());
-        quantityField.setText(String.valueOf(book.getQuantity()));
+
+        quantityField.setText(
+                String.valueOf(book.getQuantity())
+        );
     }
 
     private void clearForm() {
         table.getSelectionModel().clearSelection();
+
         titleField.clear();
         authorField.clear();
         isbnField.clear();
@@ -193,14 +243,18 @@ public class BookView {
     private void refreshTable() {
         table.setItems(
                 FXCollections.observableArrayList(
-                        controller.getAllBooks()));
+                        controller.getAllBooks()
+                )
+        );
     }
 
     private void showError(String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
+
         alert.setTitle("Library System");
         alert.setHeaderText("Unable to complete operation");
         alert.setContentText(message);
+
         alert.showAndWait();
     }
 }
