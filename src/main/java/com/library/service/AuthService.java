@@ -1,18 +1,20 @@
-
 package com.library.service;
-
+//This checks the username and password.
 public class AuthService {
 
-    // Temporary library user credentials stored in memory.
-    private final String libraryUsername = "libraryuser";
-    private final String libraryPassword = "library123";
+    private String username = "libraryuser";
+    private String password = "library123";
 
-    public boolean login(String username, String password) {
-        if (username == null || password == null) {
+    public boolean login(String enteredUsername, String enteredPassword) {
+        if (enteredUsername == null || enteredPassword == null) {
             return false;
         }
 
-        return libraryUsername.equals(username.trim())
-                && libraryPassword.equals(password);
+        if (username.equals(enteredUsername.trim())
+                && password.equals(enteredPassword)) {
+            return true;
+        } else {
+            return false;
+        }
     }
 }

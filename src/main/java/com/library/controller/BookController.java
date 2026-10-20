@@ -1,35 +1,42 @@
 package com.library.controller;
 
-import com.library.model.Book;
+import com.library.model.LibraryItem;
 import com.library.service.BookService;
 
+//The controller passes requests from the interface to the service.
 public class BookController {
 
-    private final BookService service;
+    private BookService service;
 
     public BookController(BookService service) {
         this.service = service;
     }
 
-    public Book[] getAllBooks() {
+    public LibraryItem[] getAllBooks() {
         return service.getAllBooks();
     }
 
-    public void addBook(String title, String author, String isbn,
-                        String category, int quantity) {
-
-        service.addBook(title, author, isbn, category, quantity);
+    public LibraryItem[] searchBooks(String keyword) {
+        return service.searchBooks(keyword);
     }
 
-    public void updateBook(int id, String title, String author,
-                           String isbn, String category, int quantity) {
+    public void addBook(String type, String title, String author,
+                        String isbn, String category, String quantityText) {
 
-        service.updateBook(
-                id, title, author, isbn, category, quantity
-        );
+        service.addBook(type, title, author, isbn, category, quantityText);
+    }
+
+    public void updateBook(int id, String type, String title, String author,
+                           String isbn, String category, String quantityText) {
+
+        service.updateBook(id, type, title, author, isbn, category, quantityText);
     }
 
     public void deleteBook(int id) {
         service.deleteBook(id);
+    }
+
+    public double calculateLateFee(int id, int daysLate) {
+        return service.calculateLateFee(id, daysLate);
     }
 }

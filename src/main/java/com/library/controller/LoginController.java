@@ -4,7 +4,7 @@ import com.library.service.AuthService;
 
 public class LoginController {
 
-    private final AuthService authService;
+    private AuthService authService;
 
     public LoginController(AuthService authService) {
         this.authService = authService;

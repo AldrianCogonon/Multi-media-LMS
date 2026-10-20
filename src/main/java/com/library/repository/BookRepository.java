@@ -1,41 +1,50 @@
 package com.library.repository;
 
-import com.library.model.Book;
-import java.util.Arrays;
-import java.util.Optional;
+import com.library.model.LibraryItem;
 
+//This stores library items in an array. When adding or deleting an item, it creates a new array and copies the items using a for loop.
+//The array type is LibraryItem, so it can hold Book, Magazine, and DVD objects together (POLYMORPHISM).
 public class BookRepository {
 
-    private Book[] books = new Book[0];
+    private LibraryItem[] items = new LibraryItem[0];
 
-    public Book[] findAll() {
-        return Arrays.copyOf(books, books.length);
+    // ENCAPSULATION: returns a copy so other classes cannot change the private array.
+    public LibraryItem[] findAll() {
+        LibraryItem[] copy = new LibraryItem[items.length];
+
+        for (int i = 0; i < items.length; i++) {
+            copy[i] = items[i];
+        }
+
+        return copy;
     }
 
-    public Optional<Book> findById(int id) {
-        for (Book book : books) {
-            if (book.getId() == id) {
-                return Optional.of(book);
+    public LibraryItem findById(int id) {
+        for (int i = 0; i < items.length; i++) {
+            if (items[i].getId() == id) {
+                return items[i];
             }
         }
 
-        return Optional.empty();
+        return null;
     }
 
-    public void save(Book book) {
-        books = Arrays.copyOf(books, books.length + 1);
-        books[books.length - 1] = book;
+    public void save(LibraryItem item) {
+        LibraryItem[] newItems = new LibraryItem[items.length + 1];
+
+        for (int i = 0; i < items.length; i++) {
+            newItems[i] = items[i];
+        }
+
+        newItems[items.length] = item;
+        items = newItems;
     }
 
-    public boolean update(Book updatedBook) {
-        for (Book book : books) {
-            if (book.getId() == updatedBook.getId()) {
-                book.setTitle(updatedBook.getTitle());
-                book.setAuthor(updatedBook.getAuthor());
-                book.setIsbn(updatedBook.getIsbn());
-                book.setCategory(updatedBook.getCategory());
-                book.setQuantity(updatedBook.getQuantity());
-
+    // Replaces the old item with the updated one (the item type may change too).
+    public boolean update(LibraryItem updatedItem) {
+        for (int i = 0; i < items.length; i++) {
+            if (items[i].getId() == updatedItem.getId()) {
+                items[i] = updatedItem;
                 return true;
             }
         }
@@ -46,8 +55,9 @@ public class BookRepository {
     public boolean deleteById(int id) {
         int index = -1;
 
-        for (int i = 0; i < books.length; i++) {
-            if (books[i].getId() == id) {
+        // Find the position of the item.
+        for (int i = 0; i < items.length; i++) {
+            if (items[i].getId() == id) {
                 index = i;
                 break;
             }
@@ -57,19 +67,20 @@ public class BookRepository {
             return false;
         }
 
-        Book[] newBooks = new Book[books.length - 1];
+        // Create an array with one less element.
+        LibraryItem[] newItems = new LibraryItem[items.length - 1];
 
-        System.arraycopy(books, 0, newBooks, 0, index);
+        int newIndex = 0;
 
-        System.arraycopy(
-                books,
-                index + 1,
-                newBooks,
-                index,
-                books.length - index - 1
-        );
+        // Copy all items except the deleted item.
+        for (int i = 0; i < items.length; i++) {
+            if (i != index) {
+                newItems[newIndex] = items[i];
+                newIndex++;
+            }
+        }
 
-        books = newBooks;
+        items = newItems;
 
         return true;
     }

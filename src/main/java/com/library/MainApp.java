@@ -1,4 +1,3 @@
-
 package com.library;
 
 import com.library.controller.BookController;
@@ -18,8 +17,13 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.stage.Stage;
 
+import java.net.URL;
+//This starts the program, shows the login screen, opens the library interface after login,
+//and returns to login when the user logs out.
 public class MainApp extends Application {
 
     private Stage stage;
@@ -31,11 +35,9 @@ public class MainApp extends Application {
     public void start(Stage primaryStage) {
         stage = primaryStage;
 
-        // Library user authentication
         AuthService authService = new AuthService();
         loginController = new LoginController(authService);
 
-        // Existing book management system
         BookRepository repository = new BookRepository();
         BookService bookService = new BookService(repository);
         bookController = new BookController(bookService);
@@ -46,19 +48,25 @@ public class MainApp extends Application {
     private void showLogin() {
         LoginView loginView = new LoginView(
                 loginController,
-                this::showLibrary
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        showLibrary();
+                    }
+                }
         );
 
         Parent root = loginView.createView();
+        Scene scene = new Scene(root, 460, 420);
 
-        Scene scene = new Scene(root, 420, 380);
+        addStylesheet(scene);
 
         stage.setTitle("Library User Login");
         stage.setScene(scene);
         stage.setMinWidth(420);
         stage.setMinHeight(380);
-        stage.setWidth(420);
-        stage.setHeight(380);
+        stage.setWidth(460);
+        stage.setHeight(420);
         stage.centerOnScreen();
         stage.show();
     }
@@ -67,24 +75,34 @@ public class MainApp extends Application {
         BookView bookView = new BookView(bookController);
 
         BorderPane root = new BorderPane();
-
         root.setCenter(bookView.createView());
 
         Label heading = new Label("Library Management");
-        heading.setStyle(
-                "-fx-font-size: 16px; -fx-font-weight: bold;"
-        );
+        heading.getStyleClass().add("toolbar-title");
 
-        Button logoutButton = new Button("Logout");
+        Button logoutButton = new Button("Log Out");
+        logoutButton.getStyleClass().add("logout-button");
+
         logoutButton.setOnAction(event -> showLogin());
 
-        HBox toolbar = new HBox(12, heading, logoutButton);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox toolbar = new HBox(
+                12,
+                heading,
+                spacer,
+                logoutButton
+        );
+
         toolbar.setAlignment(Pos.CENTER_LEFT);
-        toolbar.setPadding(new Insets(12));
+        toolbar.setPadding(new Insets(12, 24, 12, 24));
+        toolbar.getStyleClass().add("app-toolbar");
 
         root.setTop(toolbar);
 
         Scene scene = new Scene(root, 1000, 650);
+        addStylesheet(scene);
 
         stage.setTitle("Simple Library System Management");
         stage.setScene(scene);
@@ -94,6 +112,17 @@ public class MainApp extends Application {
         stage.setHeight(650);
         stage.centerOnScreen();
         stage.show();
+    }
+
+    private void addStylesheet(Scene scene) {
+        URL stylesheet =
+                getClass().getResource("/styles/library.css");
+
+        if (stylesheet != null) {
+            scene.getStylesheets().add(
+                    stylesheet.toExternalForm()
+            );
+        }
     }
 
     public static void main(String[] args) {
