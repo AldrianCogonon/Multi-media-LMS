@@ -26,6 +26,21 @@ public class BookController {
         service.addBook(type, title, author, isbn, category, quantityText);
     }
 
+    // Returns the existing record that has the same information, or null.
+    public LibraryItem findExistingMatch(String type, String title, String author,
+                                         String isbn, String category,
+                                         String quantityText) {
+
+        return service.findExistingMatch(
+                type, title, author, isbn, category, quantityText
+        );
+    }
+
+    // Adds copies to an existing record instead of creating a new one.
+    public void addCopiesToExisting(int id, String quantityText) {
+        service.addCopiesToExisting(id, quantityText);
+    }
+
     public void updateBook(int id, String type, String title, String author,
                            String isbn, String category, String quantityText) {
 

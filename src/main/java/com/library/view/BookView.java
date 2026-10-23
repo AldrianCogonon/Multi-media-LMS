@@ -324,6 +324,22 @@ public class BookView {
 
     private void addBook() {
         try {
+            // If the same item already exists, do not create a second record.
+            // Add the entered quantity to the existing record instead.
+            LibraryItem existing = controller.findExistingMatch(
+                    typeBox.getValue(),
+                    titleField.getText(),
+                    authorField.getText(),
+                    isbnField.getText(),
+                    categoryField.getText(),
+                    quantityField.getText()
+            );
+
+            if (existing != null) {
+                addToExistingRecord(existing);
+                return;
+            }
+
             controller.addBook(
                     typeBox.getValue(),
                     titleField.getText(),
@@ -338,6 +354,63 @@ public class BookView {
 
         } catch (IllegalArgumentException e) {
             showError(e.getMessage());
+        }
+    }
+
+    // Asks the admin to confirm, then adds the copies to the existing record.
+    private void addToExistingRecord(LibraryItem existing) {
+        int copiesToAdd;
+
+        try {
+            copiesToAdd = Integer.parseInt(quantityField.getText().trim());
+        } catch (NumberFormatException e) {
+            showError("Quantity must be a whole number.");
+            return;
+        }
+
+        if (copiesToAdd <= 0) {
+            showError(
+                    "Enter a quantity greater than 0 to add to the existing record."
+            );
+            return;
+        }
+
+        int currentQuantity = existing.getQuantity();
+        int currentAvailable = controller.getAvailableCopies(existing.getId());
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+
+        confirm.setTitle("Confirm Update");
+        confirm.setHeaderText(
+                "This item already exists. Update the existing record?"
+        );
+        confirm.setContentText(
+                existing.getDetails()
+                + "\nRecord ID: " + existing.getId()
+                + "\n\nCopies to add: " + copiesToAdd
+                + "\nQuantity: " + currentQuantity
+                + " -> " + (currentQuantity + copiesToAdd)
+                + "\nAvailable: " + currentAvailable
+                + " -> " + (currentAvailable + copiesToAdd)
+                + "\n\nNo new record will be created."
+        );
+
+        Optional<ButtonType> result = confirm.showAndWait();
+
+        // Update only if the admin clicked OK.
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            try {
+                controller.addCopiesToExisting(
+                        existing.getId(),
+                        quantityField.getText()
+                );
+
+                refreshTable();
+                clearForm();
+
+            } catch (IllegalArgumentException e) {
+                showError(e.getMessage());
+            }
         }
     }
 

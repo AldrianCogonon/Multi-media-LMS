@@ -11,6 +11,7 @@ import com.library.service.BookService;
 import com.library.service.BorrowService;
 import com.library.view.BookView;
 import com.library.view.BorrowView;
+import com.library.view.BorrowedView;
 import com.library.view.LoginView;
 
 import javafx.application.Application;
@@ -111,8 +112,30 @@ public class MainApp extends Application {
 
             root.setCenter(tabs);
         } else {
-            // Library user: only the Collection page.
-            root.setCenter(bookView.createView());
+            // Library user: Collection tab and Borrowed Items tab (read-only).
+            BorrowedView borrowedView = new BorrowedView(borrowController);
+
+            Tab collectionTab = new Tab("Collection", bookView.createView());
+            collectionTab.setClosable(false);
+
+            Tab borrowedTab =
+                    new Tab("Borrowed Items", borrowedView.createView());
+            borrowedTab.setClosable(false);
+
+            TabPane tabs = new TabPane(collectionTab, borrowedTab);
+
+            // Refresh the tables so availability and loans are always up to date.
+            tabs.getSelectionModel().selectedItemProperty().addListener(
+                    (observable, oldTab, newTab) -> {
+                        if (newTab == collectionTab) {
+                            bookView.refresh();
+                        } else {
+                            borrowedView.refresh();
+                        }
+                    }
+            );
+
+            root.setCenter(tabs);
         }
 
         Label heading = new Label("Multi-Media Library Management System");

@@ -75,6 +75,67 @@ public class BookService {
         nextId++;
     }
 
+    // Looks for an existing record with the same type, title, author, ISBN,
+    // and category (ignoring capital letters and extra spaces).
+    // Returns that record, or null if this is a new item.
+    // The input is validated first, so invalid data is reported as usual.
+    public LibraryItem findExistingMatch(String type, String title, String author,
+                                         String isbn, String category,
+                                         String quantityText) {
+
+        validate(type, title, author, isbn, category, quantityText);
+
+        LibraryItem[] all = repository.findAll();
+
+        for (int i = 0; i < all.length; i++) {
+            if (all[i].getItemType().equals(type.trim())
+                    && sameText(all[i].getTitle(), title)
+                    && sameText(all[i].getAuthor(), author)
+                    && sameText(all[i].getIsbn(), isbn)
+                    && sameText(all[i].getCategory(), category)) {
+                return all[i];
+            }
+        }
+
+        return null;
+    }
+
+    // Adds more copies to an existing record instead of creating a new one.
+    // The Available count updates by itself (quantity minus borrowed copies).
+    public void addCopiesToExisting(int id, String quantityText) {
+        LibraryItem existing = repository.findById(id);
+
+        if (existing == null) {
+            throw new IllegalArgumentException("Item not found.");
+        }
+
+        if (isBlank(quantityText)) {
+            throw new IllegalArgumentException("Quantity is required.");
+        }
+
+        int copiesToAdd;
+
+        try {
+            copiesToAdd = Integer.parseInt(quantityText.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Quantity must be a whole number.");
+        }
+
+        if (copiesToAdd <= 0) {
+            throw new IllegalArgumentException(
+                    "Enter a quantity greater than 0 to add to the existing record."
+            );
+        }
+
+        long newTotal = (long) existing.getQuantity() + copiesToAdd;
+
+        if (newTotal > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("The total quantity is too large.");
+        }
+
+        existing.setQuantity((int) newTotal);
+    }
+
     public void updateBook(int id, String type, String title, String author,
                            String isbn, String category, String quantityText) {
 
@@ -213,6 +274,10 @@ public class BookService {
         }
 
         return quantity;
+    }
+
+    private boolean sameText(String first, String second) {
+        return first.trim().equalsIgnoreCase(second.trim());
     }
 
     private boolean isBlank(String value) {
