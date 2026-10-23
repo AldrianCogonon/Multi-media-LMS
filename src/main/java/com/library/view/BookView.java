@@ -1,8 +1,11 @@
 package com.library.view;
 
 import com.library.controller.BookController;
+import com.library.controller.BorrowController;
 import com.library.model.LibraryItem;
+import com.library.model.User;
 
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Parent;
@@ -22,12 +25,15 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 import java.net.URL;
+import java.time.LocalDate;
 import java.util.Optional;
 
-//This screen includes the item form, search bar, collection table, and Add, Update, Delete, Late Fee, and Clear buttons.
+//This screen includes the item form, search bar, collection table, and Add, Update, Delete, Borrow, Late Fee, and Clear buttons.
 public class BookView {
 
     private BookController controller;
+    private BorrowController borrowController;
+    private User currentUser;
 
     private TableView<LibraryItem> table = new TableView<>();
 
@@ -40,17 +46,21 @@ public class BookView {
 
     private TextField searchField = new TextField();
 
-    public BookView(BookController controller) {
+    public BookView(BookController controller,
+                    BorrowController borrowController,
+                    User currentUser) {
         this.controller = controller;
+        this.borrowController = borrowController;
+        this.currentUser = currentUser;
     }
 
     public Parent createView() {
         // Header
-        Label heading = new Label("Simple Library System");
+        Label heading = new Label("Multi-Media Library Management System");
         heading.getStyleClass().add("page-title");
 
         Label subtitle = new Label(
-                "Manage your library collection in one place."
+                "Manage books, magazines, and DVDs in one place."
         );
         subtitle.getStyleClass().add("page-subtitle");
 
@@ -103,21 +113,26 @@ public class BookView {
         Button addButton = new Button("Add Item");
         addButton.getStyleClass().add("primary-button");
 
-        Button updateButton = new Button("Update Selected");
+        Button updateButton = new Button("Update");
 
-        Button deleteButton = new Button("Delete Selected");
+        Button deleteButton = new Button("Delete");
         deleteButton.getStyleClass().add("danger-button");
 
-        Button lateFeeButton = new Button("Late Fee");
+        Button borrowButton = new Button("Borrow");
+        borrowButton.getStyleClass().add("primary-button");
+
+        Button lateFeeButton = new Button("Calculate Late Fee");
 
         Button clearButton = new Button("Clear Form");
 
         addButton.setOnAction(event -> addBook());
         updateButton.setOnAction(event -> updateBook());
         deleteButton.setOnAction(event -> deleteBook());
+        borrowButton.setOnAction(event -> borrowSelected());
         lateFeeButton.setOnAction(event -> showLateFee());
         clearButton.setOnAction(event -> clearForm());
 
+        // Admin buttons. The borrow button is not part of this row.
         HBox buttons = new HBox(
                 10,
                 addButton,
@@ -173,6 +188,18 @@ public class BookView {
         tableTitle.getStyleClass().add("section-title");
 
         VBox tableCard = new VBox(12, tableTitle, searchBar, table);
+
+        // Only users who are allowed to borrow see the Borrow button.
+        if (currentUser.canBorrow()) {
+            Label borrowHint = new Label(
+                    "Select an item, then click Borrow."
+            );
+            borrowHint.getStyleClass().add("helper-text");
+
+            tableCard.getChildren().add(1, borrowHint);
+            tableCard.getChildren().add(borrowButton);
+        }
+
         tableCard.getStyleClass().add("section-card");
         VBox.setVgrow(tableCard, Priority.ALWAYS);
         VBox.setVgrow(table, Priority.ALWAYS);
@@ -186,13 +213,14 @@ public class BookView {
                     }
                 });
 
-        // Main layout
-        VBox root = new VBox(
-                18,
-                header,
-                formCard,
-                tableCard
-        );
+        // Main layout. Only users who can manage items see the item form.
+        VBox root;
+
+        if (currentUser.canManageItems()) {
+            root = new VBox(18, header, formCard, tableCard);
+        } else {
+            root = new VBox(18, header, tableCard);
+        }
 
         root.setPadding(new Insets(24));
         root.getStyleClass().add("root-pane");
@@ -262,6 +290,17 @@ public class BookView {
                 new PropertyValueFactory<>("loanPeriodDays")
         );
 
+        // Total copies minus copies currently borrowed.
+        TableColumn<LibraryItem, Integer> availableColumn =
+                new TableColumn<>("Available");
+        availableColumn.setCellValueFactory(cellData ->
+                new SimpleIntegerProperty(
+                        controller.getAvailableCopies(
+                                cellData.getValue().getId()
+                        )
+                ).asObject()
+        );
+
         table.getColumns().addAll(
                 idColumn,
                 typeColumn,
@@ -270,6 +309,7 @@ public class BookView {
                 isbnColumn,
                 categoryColumn,
                 quantityColumn,
+                availableColumn,
                 loanColumn
         );
 
@@ -364,8 +404,77 @@ public class BookView {
         }
     }
 
+    // Asks for the borrower's name, then records the loan for the selected item.
+    private void borrowSelected() {
+        LibraryItem selectedItem =
+                table.getSelectionModel().getSelectedItem();
+
+        if (selectedItem == null) {
+            showError("Please select an item to borrow.");
+            return;
+        }
+
+        TextInputDialog dialog = new TextInputDialog();
+
+        dialog.setTitle("Borrow Item");
+        dialog.setHeaderText(
+                selectedItem.getDetails()
+                + "\nAvailable copies: "
+                + controller.getAvailableCopies(selectedItem.getId())
+        );
+        dialog.setContentText("Borrower name:");
+
+        Optional<String> result = dialog.showAndWait();
+
+        if (result.isPresent()) {
+            try {
+                borrowController.borrowItem(
+                        selectedItem.getId(),
+                        result.get(),
+                        LocalDate.now()
+                );
+
+                LibraryItem item = selectedItem;
+                refresh();
+
+                Alert info = new Alert(Alert.AlertType.INFORMATION);
+
+                info.setTitle("Item Borrowed");
+                info.setHeaderText(item.getTitle() + " borrowed");
+                info.setContentText(
+                        "Due date: "
+                        + LocalDate.now().plusDays(item.getLoanPeriodDays())
+                        + " (" + item.getLoanPeriodDays() + " days)"
+                );
+
+                info.showAndWait();
+
+            } catch (IllegalArgumentException e) {
+                showError(e.getMessage());
+            }
+        }
+    }
+
+    // Called by MainApp when the user switches back to this tab.
+    public void refresh() {
+        LibraryItem selected = table.getSelectionModel().getSelectedItem();
+        int selectedId = selected == null ? -1 : selected.getId();
+
+        refreshTable();
+
+        if (selectedId != -1) {
+            for (LibraryItem item : table.getItems()) {
+                if (item.getId() == selectedId) {
+                    table.getSelectionModel().select(item);
+                    break;
+                }
+            }
+        }
+    }
+
     // POLYMORPHISM in action: the same button gives a different fee
     // depending on whether the selected item is a Book, Magazine, or DVD.
+    // This only CALCULATES the fee for the days entered. It does not save anything.
     private void showLateFee() {
         LibraryItem selectedItem =
                 table.getSelectionModel().getSelectedItem();
