@@ -6,6 +6,7 @@ import com.library.model.LibraryItem;
 import com.library.model.User;
 
 import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Parent;
@@ -17,6 +18,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextFormatter;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.GridPane;
@@ -44,6 +46,9 @@ public class BookView {
     private TextField categoryField = new TextField();
     private TextField quantityField = new TextField();
 
+    // Shows ISBN, ISSN, or VPC depending on the selected item type.
+    private Label identifierLabel = new Label("ISBN / ISSN / VPC");
+
     private TextField searchField = new TextField();
 
     public BookView(BookController controller,
@@ -70,36 +75,53 @@ public class BookView {
         // Input placeholders
         titleField.setPromptText("Enter title");
         authorField.setPromptText("Enter author name");
-        isbnField.setPromptText("Enter ISBN");
+        updateIdentifierHints(null);
         categoryField.setPromptText("Enter category");
         quantityField.setPromptText("Enter quantity");
 
         // Item type choices
         typeBox.getItems().addAll("Book", "Magazine", "DVD");
-        typeBox.setValue("Book");
+        typeBox.setPromptText("Select type");   // required: no default type
         typeBox.setMaxWidth(Double.MAX_VALUE);
+
+        // ISBN (Book) / ISSN (Magazine) / VPC (DVD): only valid characters can be typed.
+        isbnField.setTextFormatter(new TextFormatter<String>(change ->
+                LibraryItem.isAllowedWhileTyping(
+                        typeBox.getValue(), change.getControlNewText()
+                ) ? change : null
+        ));
+
+        // When the type changes, update the label and remove text that is
+        // not valid for the new type (example: letters when switching to DVD).
+        typeBox.valueProperty().addListener((observable, oldType, newType) -> {
+            updateIdentifierHints(newType);
+
+            if (!LibraryItem.isAllowedWhileTyping(newType, isbnField.getText())) {
+                isbnField.clear();
+            }
+        });
 
         // Item form
         GridPane form = new GridPane();
         form.setHgap(14);
         form.setVgap(12);
 
-        form.add(new Label("Title"), 0, 0);
+        form.add(requiredLabel(new Label("Title")), 0, 0);
         form.add(titleField, 1, 0);
 
-        form.add(new Label("Author"), 0, 1);
+        form.add(requiredLabel(new Label("Author")), 0, 1);
         form.add(authorField, 1, 1);
 
-        form.add(new Label("ISBN"), 0, 2);
+        form.add(requiredLabel(identifierLabel), 0, 2);
         form.add(isbnField, 1, 2);
 
-        form.add(new Label("Category"), 2, 0);
+        form.add(requiredLabel(new Label("Category")), 2, 0);
         form.add(categoryField, 3, 0);
 
-        form.add(new Label("Quantity"), 2, 1);
+        form.add(requiredLabel(new Label("Quantity")), 2, 1);
         form.add(quantityField, 3, 1);
 
-        form.add(new Label("Type"), 2, 2);
+        form.add(requiredLabel(new Label("Type")), 2, 2);
         form.add(typeBox, 3, 2);
 
         GridPane.setHgrow(titleField, Priority.ALWAYS);
@@ -147,7 +169,7 @@ public class BookView {
         formTitle.getStyleClass().add("section-title");
 
         Label formHint = new Label(
-                "Fill in the item information. "
+                "All fields marked * are required. "
                 + "Select a row to edit an item."
         );
         formHint.getStyleClass().add("helper-text");
@@ -163,7 +185,7 @@ public class BookView {
 
         // Search bar
         searchField.setPromptText(
-                "Search by title, author, ISBN, category, or type"
+                "Search by title, author, ID, category, or type"
         );
         HBox.setHgrow(searchField, Priority.ALWAYS);
 
@@ -240,10 +262,11 @@ public class BookView {
     }
 
     private void configureTable() {
-        TableColumn<LibraryItem, Integer> idColumn =
+        // ID column: ISBN for books, ISSN for magazines, VPC for DVDs.
+        TableColumn<LibraryItem, String> idColumn =
                 new TableColumn<>("ID");
-        idColumn.setCellValueFactory(
-                new PropertyValueFactory<>("id")
+        idColumn.setCellValueFactory(cellData ->
+                new SimpleStringProperty(cellData.getValue().getIsbn())
         );
 
         // Calls getItemType(). Each child class returns its own value.
@@ -263,12 +286,6 @@ public class BookView {
                 new TableColumn<>("Author");
         authorColumn.setCellValueFactory(
                 new PropertyValueFactory<>("author")
-        );
-
-        TableColumn<LibraryItem, String> isbnColumn =
-                new TableColumn<>("ISBN");
-        isbnColumn.setCellValueFactory(
-                new PropertyValueFactory<>("isbn")
         );
 
         TableColumn<LibraryItem, String> categoryColumn =
@@ -306,7 +323,6 @@ public class BookView {
                 typeColumn,
                 titleColumn,
                 authorColumn,
-                isbnColumn,
                 categoryColumn,
                 quantityColumn,
                 availableColumn,
@@ -369,36 +385,12 @@ public class BookView {
         }
 
         if (copiesToAdd <= 0) {
-            showError(
-                    "Enter a quantity greater than 0 to add to the existing record."
-            );
+            showError("Quantity must not be 0 or negative.");
             return;
         }
 
-        int currentQuantity = existing.getQuantity();
-        int currentAvailable = controller.getAvailableCopies(existing.getId());
-
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-
-        confirm.setTitle("Confirm Update");
-        confirm.setHeaderText(
-                "This item already exists. Update the existing record?"
-        );
-        confirm.setContentText(
-                existing.getDetails()
-                + "\nRecord ID: " + existing.getId()
-                + "\n\nCopies to add: " + copiesToAdd
-                + "\nQuantity: " + currentQuantity
-                + " -> " + (currentQuantity + copiesToAdd)
-                + "\nAvailable: " + currentAvailable
-                + " -> " + (currentAvailable + copiesToAdd)
-                + "\n\nNo new record will be created."
-        );
-
-        Optional<ButtonType> result = confirm.showAndWait();
-
-        // Update only if the admin clicked OK.
-        if (result.isPresent() && result.get() == ButtonType.OK) {
+        if (confirmUpdateExisting(
+                existing, copiesToAdd, "No new record will be created.")) {
             try {
                 controller.addCopiesToExisting(
                         existing.getId(),
@@ -414,6 +406,73 @@ public class BookView {
         }
     }
 
+    // Same confirmation as Add, used when an Update would create a duplicate.
+    // The record being edited is merged into the existing record.
+    private void mergeWithExistingRecord(LibraryItem edited, LibraryItem existing) {
+        int copiesToAdd;
+
+        try {
+            copiesToAdd = Integer.parseInt(quantityField.getText().trim());
+        } catch (NumberFormatException e) {
+            showError("Quantity must be a whole number.");
+            return;
+        }
+
+        if (copiesToAdd <= 0) {
+            showError("Quantity must not be 0 or negative.");
+            return;
+        }
+
+        String note = "The record you are editing (" + edited.getIdentifierLabel()
+                + ": " + edited.getIsbn() + ") will be merged into this record.\n"
+                + "No duplicate record will be created.";
+
+        if (confirmUpdateExisting(existing, copiesToAdd, note)) {
+            try {
+                controller.mergeIntoExisting(
+                        edited.getId(),
+                        existing.getId(),
+                        quantityField.getText()
+                );
+
+                refreshTable();
+                clearForm();
+
+            } catch (IllegalArgumentException e) {
+                showError(e.getMessage());
+            }
+        }
+    }
+
+    // The duplicate confirmation dialog shared by Add and Update.
+    // Returns true only if the admin clicked OK.
+    private boolean confirmUpdateExisting(LibraryItem existing,
+                                          int copiesToAdd, String note) {
+        int currentQuantity = existing.getQuantity();
+        int currentAvailable = controller.getAvailableCopies(existing.getId());
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+
+        confirm.setTitle("Confirm Update");
+        confirm.setHeaderText(
+                "This item already exists. Update the existing record?"
+        );
+        confirm.setContentText(
+                existing.getDetails()
+                + "\n" + existing.getIdentifierLabel() + ": " + existing.getIsbn()
+                + "\n\nCopies to add: " + copiesToAdd
+                + "\nQuantity: " + currentQuantity
+                + " -> " + (currentQuantity + copiesToAdd)
+                + "\nAvailable: " + currentAvailable
+                + " -> " + (currentAvailable + copiesToAdd)
+                + "\n\n" + note
+        );
+
+        Optional<ButtonType> result = confirm.showAndWait();
+
+        return result.isPresent() && result.get() == ButtonType.OK;
+    }
+
     private void updateBook() {
         LibraryItem selectedItem =
                 table.getSelectionModel().getSelectedItem();
@@ -424,6 +483,42 @@ public class BookView {
         }
 
         try {
+            // If the changes would make this record identical to another
+            // record, ask for confirmation instead of creating a duplicate.
+            LibraryItem duplicate = controller.findExistingMatch(
+                    selectedItem.getId(),
+                    typeBox.getValue(),
+                    titleField.getText(),
+                    authorField.getText(),
+                    isbnField.getText(),
+                    categoryField.getText(),
+                    quantityField.getText()
+            );
+
+            if (duplicate != null) {
+                mergeWithExistingRecord(selectedItem, duplicate);
+                return;
+            }
+
+            // Show what will change and ask the admin to confirm.
+            String changes = describeChanges(selectedItem);
+
+            if (changes.isEmpty()) {
+                Alert info = new Alert(Alert.AlertType.INFORMATION);
+
+                info.setTitle("No Changes");
+                info.setHeaderText("Nothing to update");
+                info.setContentText(
+                        "The information is the same as the existing record."
+                );
+                info.showAndWait();
+                return;
+            }
+
+            if (!confirmUpdate(selectedItem, changes)) {
+                return;
+            }
+
             controller.updateBook(
                     selectedItem.getId(),
                     typeBox.getValue(),
@@ -440,6 +535,68 @@ public class BookView {
         } catch (IllegalArgumentException e) {
             showError(e.getMessage());
         }
+    }
+
+    // Compares the form with the selected record.
+    // Returns one line per changed field ("Field: old -> new"), or "" if nothing changed.
+    private String describeChanges(LibraryItem old) {
+        String newType = typeBox.getValue().trim();
+        String changes = "";
+
+        if (!old.getItemType().equals(newType)) {
+            changes += "Type: " + old.getItemType() + " -> " + newType + "\n";
+        }
+
+        if (!old.getTitle().equals(titleField.getText().trim())) {
+            changes += "Title: " + old.getTitle()
+                    + " -> " + titleField.getText().trim() + "\n";
+        }
+
+        if (!old.getAuthor().equals(authorField.getText().trim())) {
+            changes += "Author: " + old.getAuthor()
+                    + " -> " + authorField.getText().trim() + "\n";
+        }
+
+        String newId = isbnField.getText().trim();
+
+        if (!old.getIsbn().equals(newId)
+                || !old.getIdentifierLabel().equals(
+                        LibraryItem.getIdentifierLabel(newType))) {
+            changes += "ID (" + LibraryItem.getIdentifierLabel(newType) + "): "
+                    + old.getIsbn() + " -> " + newId + "\n";
+        }
+
+        if (!old.getCategory().equals(categoryField.getText().trim())) {
+            changes += "Category: " + old.getCategory()
+                    + " -> " + categoryField.getText().trim() + "\n";
+        }
+
+        int newQuantity = Integer.parseInt(quantityField.getText().trim());
+
+        if (old.getQuantity() != newQuantity) {
+            changes += "Quantity: " + old.getQuantity()
+                    + " -> " + newQuantity + "\n";
+        }
+
+        return changes.trim();
+    }
+
+    // Confirmation shown before Update. Lists every change.
+    // Returns true only if the admin clicked OK.
+    private boolean confirmUpdate(LibraryItem old, String changes) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+
+        confirm.setTitle("Confirm Update");
+        confirm.setHeaderText("Are you sure you want to update this record?");
+        confirm.setContentText(
+                old.getDetails()
+                + "\n" + old.getIdentifierLabel() + ": " + old.getIsbn()
+                + "\n\nChanges:\n" + changes
+        );
+
+        Optional<ButtonType> result = confirm.showAndWait();
+
+        return result.isPresent() && result.get() == ButtonType.OK;
     }
 
     private void deleteBook() {
@@ -606,7 +763,7 @@ public class BookView {
     private void clearForm() {
         table.getSelectionModel().clearSelection();
 
-        typeBox.setValue("Book");
+        typeBox.setValue(null);
         titleField.clear();
         authorField.clear();
         isbnField.clear();
@@ -625,6 +782,31 @@ public class BookView {
         // The items are the same objects, so the table would keep showing
         // old values (like Available). refresh() makes it redraw every cell.
         table.refresh();
+    }
+
+    // Adds a red * after a label to show the field is required.
+    private HBox requiredLabel(Label label) {
+        Label star = new Label("*");
+        star.setStyle("-fx-text-fill: #d32f2f; -fx-font-weight: bold;");
+
+        return new HBox(3, label, star);
+    }
+
+    // Changes the label and hint to ISBN, ISSN, or VPC based on the item type.
+    private void updateIdentifierHints(String type) {
+        if ("Book".equals(type)) {
+            identifierLabel.setText("ISBN");
+            isbnField.setPromptText("Enter ISBN (digits, hyphens, X at the end)");
+        } else if ("Magazine".equals(type)) {
+            identifierLabel.setText("ISSN");
+            isbnField.setPromptText("Enter ISSN (digits, hyphens, X at the end)");
+        } else if ("DVD".equals(type)) {
+            identifierLabel.setText("VPC");
+            isbnField.setPromptText("Enter 12-digit VPC (numbers only)");
+        } else {
+            identifierLabel.setText("ISBN / ISSN / VPC");
+            isbnField.setPromptText("Select a type first");
+        }
     }
 
     private void showError(String message) {

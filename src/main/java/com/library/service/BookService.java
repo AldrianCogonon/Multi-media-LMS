@@ -83,12 +83,24 @@ public class BookService {
                                          String isbn, String category,
                                          String quantityText) {
 
+        return findExistingMatch(
+                -1, type, title, author, isbn, category, quantityText
+        );
+    }
+
+    // Same check, but ignores the record with id "ignoreId".
+    // Update uses this so a record is never compared with itself.
+    public LibraryItem findExistingMatch(int ignoreId, String type, String title,
+                                         String author, String isbn,
+                                         String category, String quantityText) {
+
         validate(type, title, author, isbn, category, quantityText);
 
         LibraryItem[] all = repository.findAll();
 
         for (int i = 0; i < all.length; i++) {
-            if (all[i].getItemType().equals(type.trim())
+            if (all[i].getId() != ignoreId
+                    && all[i].getItemType().equals(type.trim())
                     && sameText(all[i].getTitle(), title)
                     && sameText(all[i].getAuthor(), author)
                     && sameText(all[i].getIsbn(), isbn)
@@ -123,7 +135,7 @@ public class BookService {
 
         if (copiesToAdd <= 0) {
             throw new IllegalArgumentException(
-                    "Enter a quantity greater than 0 to add to the existing record."
+                    "Quantity must not be 0 or negative."
             );
         }
 
@@ -134,6 +146,28 @@ public class BookService {
         }
 
         existing.setQuantity((int) newTotal);
+    }
+
+    // Used when an Update would make a record identical to another record.
+    // The edited record is merged into the existing one: its quantity is
+    // added to the existing record and the edited record is removed,
+    // so no duplicate is created.
+    public void mergeIntoExisting(int editedId, int existingId, String quantityText) {
+        LibraryItem edited = repository.findById(editedId);
+        LibraryItem existing = repository.findById(existingId);
+
+        if (edited == null || existing == null) {
+            throw new IllegalArgumentException("Item not found.");
+        }
+
+        if (borrowRepository.countActiveByItemId(editedId) > 0) {
+            throw new IllegalArgumentException(
+                    "This item cannot be merged while copies are borrowed."
+            );
+        }
+
+        addCopiesToExisting(existingId, quantityText);
+        repository.deleteById(editedId);
     }
 
     public void updateBook(int id, String type, String title, String author,
@@ -236,8 +270,15 @@ public class BookService {
             errors = errors + "Author is required.\n";
         }
 
-        if (isBlank(isbn)) {
-            errors = errors + "ISBN is required.\n";
+        // ISBN (Book), ISSN (Magazine), or VPC (DVD): the rule depends on the type.
+        if (!isBlank(type)) {
+            String idError = LibraryItem.getIdentifierError(type.trim(), isbn);
+
+            if (idError != null) {
+                errors = errors + idError + "\n";
+            }
+        } else if (isBlank(isbn)) {
+            errors = errors + "ISBN / ISSN / VPC is required.\n";
         }
 
         if (isBlank(category)) {
@@ -260,8 +301,8 @@ public class BookService {
             try {
                 quantity = Integer.parseInt(quantityText.trim());
 
-                if (quantity < 0) {
-                    errors = errors + "Quantity cannot be negative.\n";
+                if (quantity <= 0) {
+                    errors = errors + "Quantity must not be 0 or negative.\n";
                 }
 
             } catch (NumberFormatException e) {

@@ -56,6 +56,62 @@ public abstract class LibraryItem implements Searchable {
                 || getItemType().toLowerCase().contains(search);
     }
 
+
+    // ----- Identifier rules (ISBN for Book, ISSN for Magazine, VPC for DVD) -----
+
+    // The name of the identifier for each item type.
+    public static String getIdentifierLabel(String type) {
+        if ("Magazine".equals(type)) {
+            return "ISSN";
+        } else if ("DVD".equals(type)) {
+            return "VPC";
+        } else {
+            return "ISBN";
+        }
+    }
+
+    public String getIdentifierLabel() {
+        return getIdentifierLabel(getItemType());
+    }
+
+    // Characters allowed while typing (the value may still be incomplete).
+    // DVD: digits 0-9 only, up to 12.
+    // Book/Magazine: digits 0-9 and hyphens, with an X or x only at the very end.
+    public static boolean isAllowedWhileTyping(String type, String text) {
+        if (text == null) {
+            return true;
+        }
+
+        if ("DVD".equals(type)) {
+            return text.matches("[0-9]{0,12}");
+        }
+
+        return text.matches("[0-9-]*[Xx]?");
+    }
+
+    // Full check used when saving. Returns an error message, or null if valid.
+    public static String getIdentifierError(String type, String value) {
+        String label = getIdentifierLabel(type);
+
+        if (value == null || value.trim().isEmpty()) {
+            return label + " is required.";
+        }
+
+        String id = value.trim();
+
+        if ("DVD".equals(type)) {
+            if (!id.matches("[0-9]{12}")) {
+                return "VPC must be exactly 12 digits (0-9 only). "
+                        + "Letters, hyphens, and negative numbers are not allowed.";
+            }
+        } else if (!isAllowedWhileTyping(type, id) || !id.matches(".*[0-9].*")) {
+            return label + " may only contain digits 0-9 and hyphens, "
+                    + "with a capital or small X allowed only at the very end.";
+        }
+
+        return null;
+    }
+
     // Getters
     public int getId() {
         return id;
@@ -97,8 +153,10 @@ public abstract class LibraryItem implements Searchable {
     }
 
     public void setIsbn(String isbn) {
-        if (isbn == null || isbn.trim().isEmpty()) {
-            throw new IllegalArgumentException("ISBN is required.");
+        String error = getIdentifierError(getItemType(), isbn);
+
+        if (error != null) {
+            throw new IllegalArgumentException(error);
         }
         this.isbn = isbn.trim();
     }
@@ -111,8 +169,8 @@ public abstract class LibraryItem implements Searchable {
     }
 
     public void setQuantity(int quantity) {
-        if (quantity < 0) {
-            throw new IllegalArgumentException("Quantity cannot be negative.");
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must not be 0 or negative.");
         }
         this.quantity = quantity;
     }
