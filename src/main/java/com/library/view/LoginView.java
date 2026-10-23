@@ -1,6 +1,7 @@
 package com.library.view;
 
 import com.library.controller.LoginController;
+import com.library.model.User;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -12,28 +13,30 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 
 import java.net.URL;
+import java.util.function.Consumer;
+
 //This displays the login form and opens the library screen after successful authentication.
 public class LoginView {
 
     private LoginController controller;
-    private Runnable onLoginSuccess;
+    private Consumer<User> onLoginSuccess;
 
     private TextField usernameField = new TextField();
     private PasswordField passwordField = new PasswordField();
     private Label messageLabel = new Label();
 
     public LoginView(LoginController controller,
-                     Runnable onLoginSuccess) {
+                     Consumer<User> onLoginSuccess) {
 
         this.controller = controller;
         this.onLoginSuccess = onLoginSuccess;
     }
 
     public Parent createView() {
-        Label title = new Label("Simple Library System");
+        Label title = new Label("Multi-Media LMS");
         title.getStyleClass().add("login-title");
 
-        Label subtitle = new Label("Library User Login");
+        Label subtitle = new Label("Log in to continue");
         subtitle.getStyleClass().add("login-subtitle");
 
         usernameField.setPromptText("Enter username");
@@ -89,11 +92,13 @@ public class LoginView {
         String username = usernameField.getText();
         String password = passwordField.getText();
 
-        if (controller.login(username, password)) {
+        User user = controller.login(username, password);
+
+        if (user != null) {
             messageLabel.setText("");
             passwordField.clear();
 
-            onLoginSuccess.run();
+            onLoginSuccess.accept(user);
         } else {
             messageLabel.setText(
                     "Invalid username or password. Please try again."
