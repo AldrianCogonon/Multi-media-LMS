@@ -5,15 +5,30 @@ import com.library.model.DVD;
 import com.library.model.LibraryItem;
 import com.library.model.Magazine;
 import com.library.repository.BookRepository;
+import com.library.repository.BorrowRepository;
 
 //This contains the main rules of the system: add, update, delete, search, late fee, and validation.
 public class BookService {
 
     private BookRepository repository;
+    private BorrowRepository borrowRepository;
     private int nextId = 1;
 
-    public BookService(BookRepository repository) {
+    public BookService(BookRepository repository,
+                       BorrowRepository borrowRepository) {
         this.repository = repository;
+        this.borrowRepository = borrowRepository;
+    }
+
+    // Total copies minus copies that are currently borrowed.
+    public int getAvailableCopies(int id) {
+        LibraryItem item = repository.findById(id);
+
+        if (item == null) {
+            return 0;
+        }
+
+        return item.getQuantity() - borrowRepository.countActiveByItemId(id);
     }
 
     public LibraryItem[] getAllBooks() {
@@ -65,6 +80,31 @@ public class BookService {
 
         int quantity = validate(type, title, author, isbn, category, quantityText);
 
+        LibraryItem existing = repository.findById(id);
+
+        if (existing == null) {
+            throw new IllegalArgumentException("Item not found.");
+        }
+
+        // Protect items that are currently borrowed.
+        int borrowed = borrowRepository.countActiveByItemId(id);
+
+        if (borrowed > 0) {
+            if (quantity < borrowed) {
+                throw new IllegalArgumentException(
+                        "Quantity cannot be lower than the " + borrowed
+                        + " cop" + (borrowed == 1 ? "y" : "ies")
+                        + " currently borrowed."
+                );
+            }
+
+            if (!existing.getItemType().equals(type)) {
+                throw new IllegalArgumentException(
+                        "The item type cannot be changed while copies are borrowed."
+                );
+            }
+        }
+
         LibraryItem item = createItem(
                 type, id, title, author, isbn, category, quantity
         );
@@ -75,6 +115,12 @@ public class BookService {
     }
 
     public void deleteBook(int id) {
+        if (borrowRepository.countActiveByItemId(id) > 0) {
+            throw new IllegalArgumentException(
+                    "This item cannot be deleted while copies are borrowed."
+            );
+        }
+
         if (repository.deleteById(id) == false) {
             throw new IllegalArgumentException("Item not found.");
         }

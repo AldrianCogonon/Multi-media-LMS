@@ -36,6 +36,10 @@ public class BookController {
         service.deleteBook(id);
     }
 
+    public int getAvailableCopies(int id) {
+        return service.getAvailableCopies(id);
+    }
+
     public double calculateLateFee(int id, int daysLate) {
         return service.calculateLateFee(id, daysLate);
     }
