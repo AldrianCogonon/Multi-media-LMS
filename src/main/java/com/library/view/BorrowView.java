@@ -261,6 +261,9 @@ public class BorrowView {
                         )
                 )
         );
+
+        // Redraw all cells so status, return date and late fee are up to date.
+        table.refresh();
     }
 
     private void showError(String message) {

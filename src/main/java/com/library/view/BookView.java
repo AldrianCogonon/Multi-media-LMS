@@ -474,7 +474,6 @@ public class BookView {
 
     // POLYMORPHISM in action: the same button gives a different fee
     // depending on whether the selected item is a Book, Magazine, or DVD.
-    // This only CALCULATES the fee for the days entered. It does not save anything.
     private void showLateFee() {
         LibraryItem selectedItem =
                 table.getSelectionModel().getSelectedItem();
@@ -549,6 +548,10 @@ public class BookView {
                         controller.searchBooks(searchField.getText())
                 )
         );
+
+        // The items are the same objects, so the table would keep showing
+        // old values (like Available). refresh() makes it redraw every cell.
+        table.refresh();
     }
 
     private void showError(String message) {
