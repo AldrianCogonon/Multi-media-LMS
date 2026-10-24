@@ -127,6 +127,7 @@ public class BorrowView {
 
         TableColumn<BorrowRecord, String> typeColumn = new TableColumn<>("Type");
         typeColumn.setCellValueFactory(new PropertyValueFactory<>("itemType"));
+        typeColumn.setCellFactory(column -> new BadgeCell<>());
 
         TableColumn<BorrowRecord, LocalDate> borrowedColumn =
                 new TableColumn<>("Borrowed");
@@ -146,6 +147,7 @@ public class BorrowView {
         TableColumn<BorrowRecord, String> statusColumn =
                 new TableColumn<>("Status");
         statusColumn.setCellValueFactory(new PropertyValueFactory<>("status"));
+        statusColumn.setCellFactory(column -> new BadgeCell<>());
 
         // Fee so far for borrowed items, final fee for returned items.
         TableColumn<BorrowRecord, String> feeColumn =
@@ -180,11 +182,12 @@ public class BorrowView {
             protected void updateItem(BorrowRecord record, boolean empty) {
                 super.updateItem(record, empty);
 
-                if (empty || record == null
-                        || !"Overdue".equals(record.getStatus())) {
-                    setStyle("");
-                } else {
-                    setStyle("-fx-background-color: #fff0ef;");
+                // "overdue-row" is colored in library.css.
+                getStyleClass().remove("overdue-row");
+
+                if (!empty && record != null
+                        && "Overdue".equals(record.getStatus())) {
+                    getStyleClass().add("overdue-row");
                 }
             }
         });

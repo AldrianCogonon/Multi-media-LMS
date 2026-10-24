@@ -15,6 +15,8 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
@@ -28,6 +30,7 @@ import javafx.scene.layout.VBox;
 
 import java.net.URL;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Optional;
 
 //This screen includes the item form, search bar, collection table, and Add, Update, Delete, Borrow, Late Fee, and Clear buttons.
@@ -51,6 +54,13 @@ public class BookView {
 
     private TextField searchField = new TextField();
 
+    // Numbers shown in the summary cards at the top.
+    private Label totalValue = new Label("0");
+    private Label bookValue = new Label("0");
+    private Label magazineValue = new Label("0");
+    private Label dvdValue = new Label("0");
+    private Label availableValue = new Label("0");
+
     public BookView(BookController controller,
                     BorrowController borrowController,
                     User currentUser) {
@@ -61,16 +71,30 @@ public class BookView {
 
     public Parent createView() {
         // Header
-        Label heading = new Label("Multi-Media Library Management System");
+        Label heading = new Label(
+                getGreeting() + ", " + currentUser.getUsername()
+        );
         heading.getStyleClass().add("page-title");
 
         Label subtitle = new Label(
-                "Manage books, magazines, and DVDs in one place."
+                currentUser.canManageItems()
+                        ? "Manage books, magazines, and DVDs in one place."
+                        : "Browse the collection of books, magazines, and DVDs."
         );
         subtitle.getStyleClass().add("page-subtitle");
 
         VBox header = new VBox(6, heading, subtitle);
         header.getStyleClass().add("page-header");
+
+        // Summary cards
+        HBox statsRow = new HBox(
+                14,
+                statCard("Total items", totalValue, null),
+                statCard("Books", bookValue, "stat-value-book"),
+                statCard("Magazines", magazineValue, "stat-value-magazine"),
+                statCard("DVDs", dvdValue, "stat-value-dvd"),
+                statCard("Available copies", availableValue, null)
+        );
 
         // Input placeholders
         titleField.setPromptText("Enter title");
@@ -223,6 +247,11 @@ public class BookView {
         }
 
         tableCard.getStyleClass().add("section-card");
+
+        // The admin's Library Collection card gets extra padding (see library.css).
+        if (currentUser.canManageItems()) {
+            tableCard.getStyleClass().add("collection-card");
+        }
         VBox.setVgrow(tableCard, Priority.ALWAYS);
         VBox.setVgrow(table, Priority.ALWAYS);
 
@@ -239,9 +268,9 @@ public class BookView {
         VBox root;
 
         if (currentUser.canManageItems()) {
-            root = new VBox(18, header, formCard, tableCard);
+            root = new VBox(18, header, statsRow, formCard, tableCard);
         } else {
-            root = new VBox(18, header, tableCard);
+            root = new VBox(18, header, statsRow, tableCard);
         }
 
         root.setPadding(new Insets(24));
@@ -258,7 +287,16 @@ public class BookView {
 
         refreshTable();
 
-        return root;
+        // The table always keeps enough height to show the records clearly.
+        // If the window is too short, the whole page scrolls instead.
+        table.setMinHeight(380);
+
+        ScrollPane scrollPane = new ScrollPane(root);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        scrollPane.getStyleClass().add("page-scroll");
+
+        return scrollPane;
     }
 
     private void configureTable() {
@@ -316,6 +354,34 @@ public class BookView {
                                 cellData.getValue().getId()
                         )
                 ).asObject()
+        );
+
+        // Type is shown as a colored badge (Book, Magazine, DVD).
+        typeColumn.setCellFactory(column -> new BadgeCell<>());
+
+        // Available is green when copies are left and red when none are left.
+        availableColumn.setCellFactory(column ->
+                new TableCell<LibraryItem, Integer>() {
+                    private final Label badge = new Label();
+
+                    @Override
+                    protected void updateItem(Integer value, boolean empty) {
+                        super.updateItem(value, empty);
+
+                        if (empty || value == null) {
+                            setGraphic(null);
+                            return;
+                        }
+
+                        badge.setText(String.valueOf(value));
+                        badge.getStyleClass().setAll(
+                                "badge",
+                                value > 0 ? "badge-available" : "badge-none"
+                        );
+
+                        setGraphic(badge);
+                    }
+                }
         );
 
         table.getColumns().addAll(
@@ -557,7 +623,9 @@ public class BookView {
                     + " -> " + authorField.getText().trim() + "\n";
         }
 
-        String newId = isbnField.getText().trim();
+        // Compare with the formatted ID, so typing it without hyphens
+        // is not counted as a change.
+        String newId = LibraryItem.formatIdentifier(newType, isbnField.getText());
 
         if (!old.getIsbn().equals(newId)
                 || !old.getIdentifierLabel().equals(
@@ -782,12 +850,75 @@ public class BookView {
         // The items are the same objects, so the table would keep showing
         // old values (like Available). refresh() makes it redraw every cell.
         table.refresh();
+
+        updateStats();
+    }
+
+    // Counts all items (not only the searched ones) for the summary cards.
+    private void updateStats() {
+        LibraryItem[] all = controller.getAllBooks();
+
+        int books = 0;
+        int magazines = 0;
+        int dvds = 0;
+        int availableCopies = 0;
+
+        for (int i = 0; i < all.length; i++) {
+            String type = all[i].getItemType();
+
+            if ("Book".equals(type)) {
+                books++;
+            } else if ("Magazine".equals(type)) {
+                magazines++;
+            } else if ("DVD".equals(type)) {
+                dvds++;
+            }
+
+            availableCopies += controller.getAvailableCopies(all[i].getId());
+        }
+
+        totalValue.setText(String.valueOf(all.length));
+        bookValue.setText(String.valueOf(books));
+        magazineValue.setText(String.valueOf(magazines));
+        dvdValue.setText(String.valueOf(dvds));
+        availableValue.setText(String.valueOf(availableCopies));
+    }
+
+    // One summary card: a big number and a small caption.
+    private VBox statCard(String caption, Label valueLabel, String accentClass) {
+        valueLabel.getStyleClass().add("stat-value");
+
+        if (accentClass != null) {
+            valueLabel.getStyleClass().add(accentClass);
+        }
+
+        Label captionLabel = new Label(caption);
+        captionLabel.getStyleClass().add("stat-caption");
+
+        VBox card = new VBox(2, valueLabel, captionLabel);
+        card.getStyleClass().add("stat-card");
+        card.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(card, Priority.ALWAYS);
+
+        return card;
+    }
+
+    private String getGreeting() {
+        int hour = LocalTime.now().getHour();
+
+        if (hour < 12) {
+            return "Good morning";
+        } else if (hour < 18) {
+            return "Good afternoon";
+        }
+
+        return "Good evening";
     }
 
     // Adds a red * after a label to show the field is required.
     private HBox requiredLabel(Label label) {
         Label star = new Label("*");
-        star.setStyle("-fx-text-fill: #d32f2f; -fx-font-weight: bold;");
+        star.getStyleClass().add("required-star");
 
         return new HBox(3, label, star);
     }
@@ -796,10 +927,14 @@ public class BookView {
     private void updateIdentifierHints(String type) {
         if ("Book".equals(type)) {
             identifierLabel.setText("ISBN");
-            isbnField.setPromptText("Enter ISBN (digits, hyphens, X at the end)");
+            isbnField.setPromptText(
+                    "13-digit ISBN, hyphens optional (e.g. 123-4-567-89101-2)"
+            );
         } else if ("Magazine".equals(type)) {
             identifierLabel.setText("ISSN");
-            isbnField.setPromptText("Enter ISSN (digits, hyphens, X at the end)");
+            isbnField.setPromptText(
+                    "8-character ISSN, hyphens optional (e.g. 0040-781X)"
+            );
         } else if ("DVD".equals(type)) {
             identifierLabel.setText("VPC");
             isbnField.setPromptText("Enter 12-digit VPC (numbers only)");

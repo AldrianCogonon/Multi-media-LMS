@@ -19,7 +19,9 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
@@ -27,9 +29,11 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.net.URL;
+import java.util.Optional;
 //This starts the program, shows the login screen, opens the library interface after login,
 //and returns to login when the user logs out.
 public class MainApp extends Application {
@@ -67,16 +71,16 @@ public class MainApp extends Application {
         );
 
         Parent root = loginView.createView();
-        Scene scene = new Scene(root, 460, 420);
+        Scene scene = new Scene(root, 860, 540);
 
         addStylesheet(scene);
 
         stage.setTitle("Multi-Media LMS");
         stage.setScene(scene);
-        stage.setMinWidth(420);
-        stage.setMinHeight(380);
-        stage.setWidth(460);
-        stage.setHeight(420);
+        stage.setMinWidth(760);
+        stage.setMinHeight(500);
+        stage.setWidth(860);
+        stage.setHeight(540);
         stage.centerOnScreen();
         stage.show();
     }
@@ -98,6 +102,7 @@ public class MainApp extends Application {
             borrowingTab.setClosable(false);
 
             TabPane tabs = new TabPane(collectionTab, borrowingTab);
+            tabs.getStyleClass().add("main-tabs");
 
             // Refresh the tables so availability and loans are always up to date.
             tabs.getSelectionModel().selectedItemProperty().addListener(
@@ -123,6 +128,7 @@ public class MainApp extends Application {
             borrowedTab.setClosable(false);
 
             TabPane tabs = new TabPane(collectionTab, borrowedTab);
+            tabs.getStyleClass().add("main-tabs");
 
             // Refresh the tables so availability and loans are always up to date.
             tabs.getSelectionModel().selectedItemProperty().addListener(
@@ -138,48 +144,82 @@ public class MainApp extends Application {
             root.setCenter(tabs);
         }
 
-        Label heading = new Label("Multi-Media Library Management System");
+        // Left side: app name
+        Label heading = new Label("Multi-Media Library");
         heading.getStyleClass().add("toolbar-title");
 
-        Label userLabel = new Label(
-                "Logged in as " + user.getUsername()
-                + " (" + user.getRole() + ")"
+        HBox brand = new HBox(10, heading);
+        brand.setAlignment(Pos.CENTER_LEFT);
+
+        // Right side: user (initial, name, role badge) and Log Out
+        Label avatar = new Label(
+                user.getUsername().substring(0, 1).toUpperCase()
         );
-        userLabel.getStyleClass().add("helper-text");
+        avatar.getStyleClass().add("avatar");
+
+        Label nameLabel = new Label(user.getUsername());
+        nameLabel.getStyleClass().add("user-name");
+
+        Label roleBadge = new Label(user.getRole());
+        roleBadge.getStyleClass().add("role-badge");
+
+        VBox userInfo = new VBox(2, nameLabel, roleBadge);
+        userInfo.setAlignment(Pos.CENTER_LEFT);
+
+        HBox userChip = new HBox(10, avatar, userInfo);
+        userChip.setAlignment(Pos.CENTER_LEFT);
 
         Button logoutButton = new Button("Log Out");
         logoutButton.getStyleClass().add("logout-button");
 
-        logoutButton.setOnAction(event -> showLogin());
+        logoutButton.setOnAction(event -> confirmLogout());
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         HBox toolbar = new HBox(
-                12,
-                heading,
+                16,
+                brand,
                 spacer,
-                userLabel,
+                userChip,
                 logoutButton
         );
 
         toolbar.setAlignment(Pos.CENTER_LEFT);
-        toolbar.setPadding(new Insets(12, 24, 12, 24));
+        toolbar.setPadding(new Insets(10, 24, 10, 24));
         toolbar.getStyleClass().add("app-toolbar");
 
         root.setTop(toolbar);
 
-        Scene scene = new Scene(root, 1000, 650);
+        Scene scene = new Scene(root, 1100, 720);
         addStylesheet(scene);
 
         stage.setTitle("Multi-Media Library Management System");
         stage.setScene(scene);
-        stage.setMinWidth(700);
-        stage.setMinHeight(500);
-        stage.setWidth(1000);
-        stage.setHeight(650);
+        stage.setMinWidth(900);
+        stage.setMinHeight(580);
+        stage.setWidth(1100);
+        stage.setHeight(720);
         stage.centerOnScreen();
         stage.show();
+    }
+
+    // Asks the user to confirm before going back to the login screen.
+    // This is used by both the admin and the library user.
+    private void confirmLogout() {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+
+        confirm.initOwner(stage);
+        confirm.setTitle("Confirm Log Out");
+        confirm.setHeaderText("Are you sure you want to log out?");
+        confirm.setContentText("You will go back to the login screen.");
+
+        Optional<ButtonType> result = confirm.showAndWait();
+
+        // Log out only if the user clicked OK.
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            showLogin();
+        }
     }
 
     private void addStylesheet(Scene scene) {

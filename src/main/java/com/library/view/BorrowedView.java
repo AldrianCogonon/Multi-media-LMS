@@ -7,7 +7,9 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Parent;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
@@ -23,10 +25,11 @@ import java.net.URL;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 //This screen is for the library user. It lists the items that are currently borrowed
 //(books, magazines, and DVDs), with the borrowed date, due date, and status.
-//It is read-only (no return or edit buttons).
+//The user can select a borrowed item and click Return to give it back.
 public class BorrowedView {
 
     private BorrowController controller;
@@ -46,7 +49,7 @@ public class BorrowedView {
 
         Label subtitle = new Label(
                 "See which books, magazines, and DVDs are borrowed, "
-                + "when they were borrowed, and when they are due."
+                + "when they are due, and return them here."
         );
         subtitle.getStyleClass().add("page-subtitle");
 
@@ -84,8 +87,15 @@ public class BorrowedView {
 
         summaryLabel.getStyleClass().add("helper-text");
 
+        Label hint = new Label("Select a borrowed item, then click Return.");
+        hint.getStyleClass().add("helper-text");
+
+        Button returnButton = new Button("Return");
+        returnButton.getStyleClass().add("primary-button");
+        returnButton.setOnAction(event -> returnSelected());
+
         VBox tableCard = new VBox(
-                12, tableTitle, summaryLabel, searchBar, table
+                12, tableTitle, summaryLabel, hint, searchBar, table, returnButton
         );
         tableCard.getStyleClass().add("section-card");
         VBox.setVgrow(tableCard, Priority.ALWAYS);
@@ -112,6 +122,7 @@ public class BorrowedView {
 
         TableColumn<BorrowRecord, String> typeColumn = new TableColumn<>("Type");
         typeColumn.setCellValueFactory(new PropertyValueFactory<>("itemType"));
+        typeColumn.setCellFactory(column -> new BadgeCell<>());
 
         TableColumn<BorrowRecord, String> borrowerColumn =
                 new TableColumn<>("Borrower");
@@ -132,6 +143,7 @@ public class BorrowedView {
         TableColumn<BorrowRecord, String> statusColumn =
                 new TableColumn<>("Status");
         statusColumn.setCellValueFactory(new PropertyValueFactory<>("status"));
+        statusColumn.setCellFactory(column -> new BadgeCell<>());
 
         // Late fee so far (0.00 while the item is still on time).
         TableColumn<BorrowRecord, String> feeColumn =
@@ -164,14 +176,74 @@ public class BorrowedView {
             protected void updateItem(BorrowRecord record, boolean empty) {
                 super.updateItem(record, empty);
 
-                if (empty || record == null
-                        || !"Overdue".equals(record.getStatus())) {
-                    setStyle("");
-                } else {
-                    setStyle("-fx-background-color: #fff0ef;");
+                // "overdue-row" is colored in library.css.
+                getStyleClass().remove("overdue-row");
+
+                if (!empty && record != null
+                        && "Overdue".equals(record.getStatus())) {
+                    getStyleClass().add("overdue-row");
                 }
             }
         });
+    }
+
+    // Returns the selected item. The return date is always today.
+    private void returnSelected() {
+        BorrowRecord selected = table.getSelectionModel().getSelectedItem();
+
+        if (selected == null) {
+            showError("Please select a borrowed item to return.");
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+
+        confirm.setTitle("Confirm Return");
+        confirm.setHeaderText("Are you sure you want to return this item?");
+        confirm.setContentText(
+                selected.getItemType() + ": " + selected.getItemTitle()
+                + "\nBorrower: " + selected.getBorrowerName()
+                + "\nDue date: " + selected.getDueDate()
+        );
+
+        Optional<ButtonType> result = confirm.showAndWait();
+
+        // Return only if the user clicked OK.
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            try {
+                double fee = controller.returnItem(
+                        selected.getId(),
+                        LocalDate.now()
+                );
+
+                refresh();
+
+                Alert info = new Alert(Alert.AlertType.INFORMATION);
+
+                info.setTitle("Item Returned");
+                info.setHeaderText(selected.getItemTitle() + " returned");
+                info.setContentText(
+                        fee > 0
+                        ? "Returned late. Late fee: PHP "
+                                + String.format("%.2f", fee)
+                        : "Returned on time. No late fee."
+                );
+
+                info.showAndWait();
+
+            } catch (IllegalArgumentException e) {
+                showError(e.getMessage());
+            }
+        }
+    }
+
+    private void showError(String message) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+
+        alert.setTitle("Invalid Input");
+        alert.setHeaderText("Please check your input");
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     // Shows only items that are not returned yet ("Borrowed" filter),

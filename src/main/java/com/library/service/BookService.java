@@ -75,7 +75,7 @@ public class BookService {
         nextId++;
     }
 
-    // Looks for an existing record with the same type, title, author, ISBN,
+    // Looks for an existing record with the same type, title, author, ID (ISBN/ISSN/VPC),
     // and category (ignoring capital letters and extra spaces).
     // Returns that record, or null if this is a new item.
     // The input is validated first, so invalid data is reported as usual.
@@ -96,6 +96,10 @@ public class BookService {
 
         validate(type, title, author, isbn, category, quantityText);
 
+        // Saved IDs have hyphens, so the typed ID is formatted the same way
+        // before comparing (typing it with or without hyphens gives a match).
+        String code = LibraryItem.formatIdentifier(type.trim(), isbn);
+
         LibraryItem[] all = repository.findAll();
 
         for (int i = 0; i < all.length; i++) {
@@ -103,7 +107,7 @@ public class BookService {
                     && all[i].getItemType().equals(type.trim())
                     && sameText(all[i].getTitle(), title)
                     && sameText(all[i].getAuthor(), author)
-                    && sameText(all[i].getIsbn(), isbn)
+                    && sameText(all[i].getIsbn(), code)
                     && sameText(all[i].getCategory(), category)) {
                 return all[i];
             }

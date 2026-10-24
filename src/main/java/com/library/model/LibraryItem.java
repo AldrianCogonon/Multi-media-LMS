@@ -52,6 +52,9 @@ public abstract class LibraryItem implements Searchable {
         return title.toLowerCase().contains(search)
                 || author.toLowerCase().contains(search)
                 || isbn.toLowerCase().contains(search)
+                || (!search.replace("-", "").isEmpty()
+                    && isbn.replace("-", "").toLowerCase()
+                           .contains(search.replace("-", "")))
                 || category.toLowerCase().contains(search)
                 || getItemType().toLowerCase().contains(search);
     }
@@ -75,8 +78,11 @@ public abstract class LibraryItem implements Searchable {
     }
 
     // Characters allowed while typing (the value may still be incomplete).
-    // DVD: digits 0-9 only, up to 12.
-    // Book/Magazine: digits 0-9 and hyphens, with an X or x only at the very end.
+    // Book (ISBN-13): digits 0-9 and hyphens only, up to 13 digits. No letters.
+    // Magazine (ISSN): digits 0-9 and hyphens, up to 8 characters.
+    //                  An X or x is allowed only as the 8th (last) character.
+    // DVD (VPC): digits 0-9 only, up to 12.
+    // Hyphens are optional for Book and Magazine.
     public static boolean isAllowedWhileTyping(String type, String text) {
         if (text == null) {
             return true;
@@ -86,6 +92,23 @@ public abstract class LibraryItem implements Searchable {
             return text.matches("[0-9]{0,12}");
         }
 
+        if ("Book".equals(type)) {
+            return text.matches("[0-9-]*") && removeHyphens(text).length() <= 13;
+        }
+
+        if ("Magazine".equals(type)) {
+            if (!text.matches("[0-9-]*[Xx]?")) {
+                return false;
+            }
+
+            String characters = removeHyphens(text);
+
+            // X is only allowed as the 8th character.
+            return characters.length() <= 8
+                    && (!characters.matches(".*[Xx]") || characters.length() == 8);
+        }
+
+        // No type selected yet.
         return text.matches("[0-9-]*[Xx]?");
     }
 
@@ -104,12 +127,61 @@ public abstract class LibraryItem implements Searchable {
                 return "VPC must be exactly 12 digits (0-9 only). "
                         + "Letters, hyphens, and negative numbers are not allowed.";
             }
-        } else if (!isAllowedWhileTyping(type, id) || !id.matches(".*[0-9].*")) {
-            return label + " may only contain digits 0-9 and hyphens, "
-                    + "with a capital or small X allowed only at the very end.";
+        } else if ("Magazine".equals(type)) {
+            // 7 digits followed by a digit or X (example: 0040-781X).
+            if (!id.matches("[0-9-]*[Xx]?")
+                    || !removeHyphens(id).matches("[0-9]{7}[0-9Xx]")) {
+                return "ISSN must have exactly 8 characters: 7 digits followed by "
+                        + "a digit or an X (example: 0040-781X). "
+                        + "Hyphens are optional.";
+            }
+        } else {
+            // Book: ISBN-13, numbers only, exactly 13 digits (hyphens not counted).
+            if (!id.matches("[0-9-]*")
+                    || !removeHyphens(id).matches("[0-9]{13}")) {
+                return "ISBN must have exactly 13 digits, numbers only "
+                        + "(example: 123-4-567-89101-2). Hyphens are optional.";
+            }
         }
 
         return null;
+    }
+
+    // Puts the hyphens in automatically, whether or not the user typed them.
+    // Book:     123-4-567-89101-2  (3-1-3-5-1)
+    // Magazine: 0040-781X          (4-4, X in capital letter)
+    // DVD:      no hyphens (12 digits)
+    // If the value is not valid, it is returned as typed (the error is shown elsewhere).
+    public static String formatIdentifier(String type, String value) {
+        if (value == null) {
+            return "";
+        }
+
+        String id = value.trim();
+
+        if (getIdentifierError(type, id) != null) {
+            return id;
+        }
+
+        String characters = removeHyphens(id).toUpperCase();
+
+        if ("DVD".equals(type)) {
+            return characters;
+        }
+
+        if ("Magazine".equals(type)) {
+            return characters.substring(0, 4) + "-" + characters.substring(4);
+        }
+
+        return characters.substring(0, 3) + "-"
+                + characters.substring(3, 4) + "-"
+                + characters.substring(4, 7) + "-"
+                + characters.substring(7, 12) + "-"
+                + characters.substring(12);
+    }
+
+    private static String removeHyphens(String text) {
+        return text.replace("-", "");
     }
 
     // Getters
@@ -158,7 +230,8 @@ public abstract class LibraryItem implements Searchable {
         if (error != null) {
             throw new IllegalArgumentException(error);
         }
-        this.isbn = isbn.trim();
+        // Saved with the hyphens in the correct places.
+        this.isbn = formatIdentifier(getItemType(), isbn);
     }
 
     public void setCategory(String category) {
